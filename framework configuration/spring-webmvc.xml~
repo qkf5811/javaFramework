@@ -44,6 +44,8 @@
         <property name="maxUploadSize" value="50000000"/>
         <property name="uploadTempDir" value="upload"></property>
     </bean>
+
+
 <!-- web.xml -->
 	<!-- 中文请求乱码问题 -->
 	<filter>

@@ -1,0 +1,4 @@
+spring mvc 的返回的结果（list, map等）等自动转换为json串，需要的jar包是：
+1.jackson-databind
+2.jackson-core
+3.jackson-annotations

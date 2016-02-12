@@ -13,6 +13,5 @@
 			<include-prelude>/WEB-INF/include/lib.jsp</include-prelude>
 		</jsp-property-group>
 	</jsp-config>
-
 </web-app>
 
