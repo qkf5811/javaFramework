@@ -6,6 +6,20 @@
 
   <display-name>Archetype Created Web Application</display-name>
 
+		<!-- 中文请求乱码问题 -->
+	<filter>
+		<filter-name>SpringEncodingFilter</filter-name>
+		<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+		<init-param>
+			<param-name>encoding</param-name>
+			<param-value>UTF-8</param-value>
+		</init-param>
+	</filter>
+	<filter-mapping>
+		<filter-name>SpringEncodingFilter</filter-name>
+		<url-pattern>/*</url-pattern>
+	</filter-mapping>
+
 	<jsp-config>
 		<jsp-property-group>
 			<description>使每个jsp页面都不用显示的引用jstl标记</description>
@@ -13,5 +27,6 @@
 			<include-prelude>/WEB-INF/include/lib.jsp</include-prelude>
 		</jsp-property-group>
 	</jsp-config>
+
 </web-app>
 
