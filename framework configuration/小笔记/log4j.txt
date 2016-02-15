@@ -1,0 +1,8 @@
+jar:
+log4j:
+group id:log4j
+ar.. id: log4j
+
+slf4j-api
+
+slf4j-log4j12
