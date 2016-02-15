@@ -1,0 +1,7 @@
+javax.mail jar:
+group id:com.sum.mail
+artifact id: javax.mail
+
+javax.mail 依赖 activation
+group id: javax.activation
+artifact id: activication
