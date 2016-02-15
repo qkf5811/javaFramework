@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:context="http://www.springframework.org/schema/context" xmlns:tx="http://www.springframework.org/schema/tx"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.2.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.2.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.2.xsd">
+
+	<!-- 引入jdbc.properties -->
+	<context:property-placeholder location="classpath:base/jdbc.properties" />
+
+	<!-- 配置阿里巴巴数据源 -->
+	<bean id="dataSource" class="com.alibaba.druid.pool.DruidDataSource"
+		p:username="${jdbc.username}" p:password="${jdbc.password}"
+		p:driverClassName="${jdbc.driverClass}" p:url="${jdbc.url}"
+		p:initialSize="${jdbc.initPoolSize}" p:maxActive="${jdbc.maxPoolSize}"></bean>
+
+	<!-- 配置SqlSessionFactory p:configLocation="classpath:mybatis/mybatis-config.xml"-->
+	<bean id="sessionFactoroy" class="org.mybatis.spring.SqlSessionFactoryBean"
+		p:dataSource-ref="dataSource" 
+		p:mapperLocations="classpath:mybatis/mapper/*/*.xml"></bean>
+
+	<!-- spring与mybatis整合配置，扫描所有dao -->
+	<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer"
+		p:basePackage="qkf.platform.*.bean.po"
+		p:sqlSessionFactoryBeanName="sqlSessionFactory" />
+	
+	<!-- 配置Spring 的事务管理器 -->
+	<bean id="transactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager"
+		p:dataSource-ref="dataSource"
+	></bean>
+	
+	<!-- 配置事务属性 -->
+	<tx:advice id="txAdvice">
+		<tx:attributes>
+			<!-- 对insert, update, delete 开头的方法，只要有异常就回滚 -->
+			<tx:method name="insert*" propagation="REQUIRED" rollback-for="java.lang.Throwable"/>
+			<tx:method name="update*" propagation="REQUIRED" rollback-for="java.lang.Throwable"/>
+			<tx:method name="delete*" propagation="REQUIRED" rollback-for="java.lang.Throwable"/>
+			<!-- 对select, count 开头的方法，开启只读，提高数据库的访问性能 -->
+			<tx:method name="select*" propagation="REQUIRED" read-only="true"/>
+			<tx:method name="count*" propagation="REQUIRED" read-only="true"/>
+			<!-- 对其他方法 使用默认的事务管理 -->
+			<tx:method name="*"/>
+		</tx:attributes>
+	</tx:advice>
+	
+	<!-- 事务 aop 配置 -->
+	<aop:config>
+		<aop:pointcut expression="execution(* qkf.platform.*.service.impl.*.*(..))" id="txPointcut"/>
+		<aop:advisor advice-ref="txAdvice" pointcut-ref="txPointcut"/>
+	</aop:config>
+	
+	<!-- 配置Spring 使用CGLIB 代理 -->
+	<aop:aspectj-autoproxy proxy-target-class="true"></aop:aspectj-autoproxy>
+	
+	<!-- 开启对事务注解的支持 -->
+	<tx:annotation-driven transaction-manager="transactionManager"/>
+</beans>
