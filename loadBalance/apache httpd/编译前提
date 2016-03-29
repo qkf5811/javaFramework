@@ -1,0 +1,31 @@
+1. 编译器:
+	gcc
+	gcc-c++
+
+2. 依赖:
+	apr
+	apr-util
+	pcre 
+	(以上三个按顺序编译安装)
+
+3. 编译安装:
+	./configure --prefix=/usr/local/apache2 --with-XX=/X/X/X --with-included-apr
+
+4. 其他:
+	pcre安装出错:
+	libtool: compile: unrecognized option `-DHAVE_CONFIG_H'
+
+	libtool: compile: Try `libtool --help' for more information.
+	make[1]: *** [pcrecpp.lo] Error 1
+	make[1]: Leaving directory `/usr/local/pcre-8.31'
+	make: *** [all] Error 2
+
+	缺少: gcc-c++
+	
+	.libs/pcrecpp.o:could not read symbols: Bad value
+	collect2: ld returned 1 exit status
+	make[1]: *** [libpcrecpp.la] 错误 1
+	make[1]: Leaving directory `/usr/app/pcre-8.00'
+	make: *** [all] 错误 2
+	
+	解决: ./configure --disable-shared --with-pic  
