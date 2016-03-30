@@ -1,0 +1,11 @@
+Session同步方式
+1. sticky模式
+        前端balancer可实现sticky模式的session同步功能。利用负载均衡器的sticky模式的方式把所有同一session的请求都发送到相同的Tomcat节点。这样不同用户的请求就被平均分配到集群中各个tomcat节点上，实现负载均衡的能力。这样做的缺点是没有灾难恢复的能力。一旦一个节点发生故障，这个节点上所有的session信息全部丢失；同一用户同一session只和一个webServer交互，一旦这个webserver发生故障，本次session将丢失，用户不能继续使用。
+ 
+2. 复制模式
+        利用Tomcat session复制的机制使得所有session在所有Tomcat节点中保持一致。当一个节点修改一个session数据的时候，该节点会把这个 session的所有内容序列化，然后广播给所有其它节点。这样当下一个用户请求被负载均衡器分配到另外一个节点的时候，那个节点上有完备的 session信息可以用来服务该请求。这种做法的问题是对session哪怕有一点点修改，也要把整个sessions数据全部序列化 （serialize），还要广播给集群中所有节点，不管该节点到底需不需要这个session。这样很容易会造成大量的网络通信，导致网络阻塞。一般采 用这种方式，当Tomcat节点超过4个时候，整个集群的吞吐量就不能再上升了；
+        此方式是通过tomcat本身提供的功能，只需要修改server.xml文件
+        （1）修改Engine节点信息： <Engine name="Catalina" defaultHost="localhost" jvmRoute="tomcat1">
+        （2）去掉<Cluster className="org.apache.catalina.ha.tcp.SimpleTcpCluster"/> 的注释符
+        （3）web.xml中增加 <distributable/>
+
