@@ -1,0 +1,51 @@
+一台服务器CPU和内存资源额定有限的情况下，如何提高服务器的性能是作为系统运维的重要工作。要提高Linux系统下的负载能力，当网站发展起来之后，web连接数过多的问题就会日益明显。在节省成本的情况下，可以考虑修改Linux 的内核TCP/IP参数来部分实现；如果通过修改内核参数也无法解决的负载问题，也只能考虑升级服务器了。
+Linux系统下，TCP/IP连接断开后，会以TIME_WAIT状态保留一定的时间，然后才会释放端口。当并发请求过多的时候，就会产生大量的 TIME_WAIT状态的连接，无法及时断开的话，会占用大量的端口资源和服务器资源(因为关闭后进程才会退出)。这个时候我们可以考虑优化TCP/IP 的内核参数，来及时将TIME_WAIT状态的端口清理掉。
+本文介绍的方法只对拥有大量TIME_WAIT状态的连接导致系统资源消耗有效，不是这个原因的情况下，效果可能不明显。那么，到哪儿去查TIME_WAIT状态的连接呢？那就是使用netstat命令。我们可以输入一个复核命令，去查看当前TCP/IP连接的状态和对应的个数：
+# netstat -an | awk '/^tcp/ {++s[$NF]} END {for(a in s) print a, s[a]}'
+
+这个命令会显示出类似下面的结果：
+TIME_WAIT 63648
+FIN_WAIT1 3
+FIN_WAIT2 4
+ESTABLISHED 184
+LISTEN 17
+我们只用关心TIME_WAIT的个数，在这里可以看到，有6w多个TIME_WAIT，这样就占用了6w多个端口。要知道端口的数量只有65535个，占用一个少一个，会严重的影响到后继的新连接。这种情况下，我们就有必要调整下Linux的TCP/IP内核参数，让系统更快的释放 TIME_WAIT连接。
+我们用vim打开配置文件：
+# vim /etc/sysctl.conf
+然后，在这个文件中，加入下面的几行内容：
+    net.ipv4.tcp_syncookies = 1
+    net.ipv4.tcp_tw_reuse = 1
+    net.ipv4.tcp_tw_recycle = 1
+    net.ipv4.tcp_fin_timeout = 5
+最后输入下面的命令，让内核参数生效：
+# /sbin/sysctl -p
+
+
+简单的说明下，上面的参数的含义：
+net.ipv4.tcp_syncookies = 1 表示开启SYN Cookies。当出现SYN等待队列溢出时，启用cookies来处理，可防范少量SYN攻击，默认为0，表示关闭；
+net.ipv4.tcp_tw_reuse = 1 表示开启重用。允许将TIME-WAIT sockets重新用于新的TCP连接，默认为0，表示关闭；
+net.ipv4.tcp_tw_recycle = 1 表示开启TCP连接中TIME-WAIT sockets的快速回收，默认为0，表示关闭；
+net.ipv4.tcp_fin_timeout 修改系统默认的 TIMEOUT 时间。
+在经过这样的调整之后，除了会进一步提升服务器的负载能力之外，还能够防御一定程度的DDoS、CC和SYN攻击，是个一举两得的做法。
+此外，如果你的连接数本身就很多，我们可以再优化一下TCP/IP的可使用端口范围，进一步提升服务器的并发能力。依然是往上面的参数文件中，加入下面这些配置：
+    net.ipv4.tcp_keepalive_time = 1200
+    net.ipv4.ip_local_port_range = 10000 65000
+    net.ipv4.tcp_max_syn_backlog = 8192
+    net.ipv4.tcp_max_tw_buckets = 5000
+
+这几个参数，建议只在流量非常大的服务器上开启，会有显著的效果。一般的流量小的服务器上，没有必要去设置这几个参数。这几个参数的含义如下：
+net.ipv4.tcp_keepalive_time = 1200 表示当keepalive起用的时候，TCP发送keepalive消息的频度。缺省是2小时，改为20分钟。
+net.ipv4.ip_local_port_range = 10000 65000 表示用于向外连接的端口范围。缺省情况下很小：32768到61000，改为10000到65000。(注意：这里不要将最低值设的太低，否则可能会占用掉正常的端口！)
+net.ipv4.tcp_max_syn_backlog = 8192 表示SYN队列的长度，默认为1024，加大队列长度为8192，可以容纳更多等待连接的网络连接数。
+net.ipv4.tcp_max_tw_buckets = 5000 表示系统同时保持TIME_WAIT的最大数量，如果超过这个数字，TIME_WAIT将立刻被清除并打印警告信息。默认为180000，改为5000。对于Apache、Nginx等服务器，上几行的参数可以很好地减少TIME_WAIT套接字数量，但是对于 Squid，效果却不大。此项参数可以控制TIME_WAIT的最大数量，避免Squid服务器被大量的TIME_WAIT拖死。
+经过这样的配置之后，你的服务器的TCP/IP并发能力又会上一个新台阶。在存在大量短连接的情况下，Linux的TCP栈一般都会生成大量的 TIME_WAIT 状态的socket。
+# netstat -ant|grep -i time_wait |wc -l
+
+
+可能会超过三四万。这个时候，我们需要修改 linux kernel 的 tcp time wait的时间，有个 sysctl 参数貌似可以使用，它是 /proc/sys/net/ipv4/tcp_fin_timeout，缺省值是 60，也就是60秒，很多网上的资料都说将这个数值设置低一些就可以减少netstat 里面的TIME_WAIT状态，但是这个说法不是很准确的。经过认真阅读Linux的内核源代码，我们发现这个数值其实是输出用的，修改之后并没有真正的读回内核中进行使用，而内核中真正管用的是一个宏定义，在 $KERNEL/include/net/tcp.h里面，有下面的行：
+    　　#define TCP_TIMEWAIT_LEN (60*HZ)
+    　　而这个宏是真正控制 TCP TIME_WAIT 状态的超时时间的。如果我们希望减少 TIME_WAIT 状态的数目(从而节省一点点内核操作时间)，那么可以把这个数值设置低一些，根据我们的测试，设置为 10 秒比较合适，也就是把上面的修改为：
+    　　#define TCP_TIMEWAIT_LEN (10*HZ)
+　　然后重新编译内核，重启系统即可发现短连接造成的TIME_WAIT状态大大减少：
+　　netstat -ant | grep -i time_wait |wc -l
+　　一般情况都可以至少减少2/3。也能相应提高系统应对短连接的速度
